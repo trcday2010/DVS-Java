@@ -43,7 +43,8 @@ public class Pupil {
   public int WHITE = 255;
   /*This value might need to be alternated to allow the threshold effect to make the cresent
    * more prominent*/
-  public int GRAY = 240;
+  public int GRAY = 240; //treshold value for white-dot
+  public int LIGHTGRAY = 224; //threshold value for crescent
   public int BLACK = 0;
 
   /*Values for contouring*/
@@ -86,7 +87,8 @@ public class Pupil {
     Imgproc.cvtColor(src, gray, Imgproc.COLOR_BGR2GRAY);
     
     /*This is the test image to test if the image will be converted to grayscale*/
-    //Highgui.imwrite("gray-test.jpg", gray);
+    Highgui.imwrite("gray-test.jpg", gray);
+    Highgui.imread("gray-test.jpg");
     
     /*Applies the threshold effect on the image for white values. Takes the image in
      * gray and detects pixels of GRAY and turns it WHITE, and it stores it back to gray.*/
@@ -269,8 +271,48 @@ public class Pupil {
    * @return
    */
   public double getCrescent() {
-	
-    return 0;
+	  
+	  /* Create a new Mat to store the picture*/
+	  Mat source = new Mat();
+	  /* copies the instance variable into source*/
+	  mat.copyTo(source);
+	  Mat gray = new Mat();
+	  
+	  /* convert the source picture into grayscale and store it into gray*/
+	  Imgproc.cvtColor(source, gray, Imgproc.COLOR_BGR2GRAY);
+	  
+	  /* those values above 240, will turned to white, the remaining values to black*/
+	  Imgproc.threshold(gray, gray, GRAY, WHITE, Imgproc.THRESH_BINARY);
+	  
+	  /* an arraylist of points used to store the contours found in the image */
+	  List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
+	  
+	  Imgproc.findContours(gray.clone(), contours, new Mat(), Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
+	  Imgproc.drawContours(gray, contours, fillCONTOURS, new Scalar(WHITE, WHITE, WHITE), contourTHICKNESS); 
+	 
+	  if(contours.isEmpty()) {
+		  log.error("No crescent found");
+		  return 0.0;
+	  }
+	  
+	  double maxArea = 0.0;
+	  
+	  /* loop through the contour arrayList and for each contour calculate its area */
+	  for(int i = 0; i < contours.size(); i++) {
+		  
+		  maxArea = Imgproc.contourArea(contours.get(i)); 
+		  
+		  if(maxArea) 
+		  
+		  
+		  
+	  }
+	    
+	   
+	  
+	  
+	  
+		  	return 0.0;
   }
   
   /**
