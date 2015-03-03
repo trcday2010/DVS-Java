@@ -19,4 +19,20 @@ public class WhiteDot {
   private double area;
   @Getter
   private double angle;
+  
+  ///////////////// Methods ////////////////
+  
+  /* Method: getArea
+   * 
+   * Description: this method is used in the bounds checking
+   * of getCrescent. The contour will be larger than the whitedot,
+   * so the area of the whitedot will be used as a lower bound when 
+   * searching for the crescent. 
+   */
+  public double getArea() {
+	  	
+	  return area;
+  }
+    
 }
+

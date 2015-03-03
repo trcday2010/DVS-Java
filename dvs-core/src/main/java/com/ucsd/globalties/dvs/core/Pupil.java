@@ -272,6 +272,12 @@ public class Pupil {
    */
   public double getCrescent() {
 	  
+	  if(this.whiteDot == null) {
+		 
+		  log.error("There is no whiteDot");
+		  return -1;
+	  }
+	  
 	  /* Create a new Mat to store the picture*/
 	  Mat source = new Mat();
 	  /* copies the instance variable into source*/
@@ -282,7 +288,7 @@ public class Pupil {
 	  Imgproc.cvtColor(source, gray, Imgproc.COLOR_BGR2GRAY);
 	  
 	  /* those values above 240, will turned to white, the remaining values to black*/
-	  Imgproc.threshold(gray, gray, GRAY, WHITE, Imgproc.THRESH_BINARY);
+	  Imgproc.threshold(gray, gray, LIGHTGRAY, WHITE, Imgproc.THRESH_BINARY);
 	  
 	  /* an arraylist of points used to store the contours found in the image */
 	  List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
@@ -295,25 +301,44 @@ public class Pupil {
 		  return 0.0;
 	  }
 	  
-	  double maxArea = 0.0;
+	  //an arrayList of Pair objects. Recall: a Pair object is itself an arrayList that
+	  //can store two objects. In this case, we store both the contour at the specified index
+	  //in contours as well as its corresponding area. 
+	  List<Pair<MatOfPoint, Double>> contourAreas = new ArrayList<>();
 	  
-	  /* loop through the contour arrayList and for each contour calculate its area */
-	  for(int i = 0; i < contours.size(); i++) {
-		  
-		  maxArea = Imgproc.contourArea(contours.get(i)); 
-		  
-		  if(maxArea) 
-		  
-		  
-		  
+	  //the contour area cannot be lower than the area 
+	  //of the whiteDot, so use it as a lower bound.
+	  double lowerBound = whiteDot.getArea();
+	  double upperBound = 3*lowerBound; //an approximation
+	  double currentArea;
+	  
+	  for (int i = 0; i < contours.size(); i++) {
+		 
+		 currentArea = Imgproc.contourArea(contours.get(i));
+		 
+		 //if the area of the specified contour is smaller than 
+		 //this.whiteDot or greater than three times this.whiteDot
+		 //skip it. 
+		 if(lowerBound > currentArea || currentArea > upperBound) {
+		 	log.error("current contour is out of bounds");
+		 	continue;
+		 }
+		 
+		 
+		 //add both the contour as well as its area to the arrayList
+		 contourAreas.add(new Pair<>(contours.get(i), Imgproc.contourArea(contours.get(i)))); 
+	  
 	  }
-	    
-	   
 	  
+	  //sorts the array in ascending order, so that the largest area is the last element
+	  contourAreas.sort(contourCompare); 
+	  int indexOfLast = contourAreas.size() -1;
 	  
+	  //return the largest area, found in the last element
+	  double maxArea = contourAreas.get(indexOfLast).getRight();
 	  
-		  	return 0.0;
-  }
+	  return maxArea;
+   } 
   
   /**
    * Return the area of the DETECTED pupil.
