@@ -19,15 +19,41 @@ import org.opencv.imgproc.Imgproc;
 
 import com.ucsd.globalties.dvs.core.tools.Pair;
 
+/**
+ * Pupil class represents a detected pupil.
+ * It has a white dot and a crescent, which are used for disease detection algorithms.
+ * @author Rahul
+ *
+ */
 @Slf4j
 public class Pupil {
   
   @Getter
   private Eye eye; // the Eye from which this Pupil was derived
   @Getter
+  /*Mat is a n-dimensional dense array that can store images, 2d complex arrays,
+   * or a matrix of 16-bit signed integers for algebraic operations*/
   private Mat mat;
   
   private WhiteDot whiteDot;
+
+  /*Important Values used in the code*/
+
+  /*RBG values*/
+  public int WHITE = 255;
+  /*This value might need to be alternated to allow the threshold effect to make the cresent
+   * more prominent*/
+  public int GRAY = 240; //treshold value for white-dot
+  public int LIGHTGRAY = 224; //threshold value for crescent
+  public int BLACK = 0;
+
+  /*Values for contouring*/
+  public int fillCONTOURS = -1;
+  public int contourTHICKNESS = -1;
+
+  /*Values for the circle*/
+  public int circleTHICKNESS = 1;
+
   
   public Pupil(Eye eye, Mat mat) {
     this.eye = eye;
@@ -40,74 +66,195 @@ public class Pupil {
    * information to detect diseases. I don't think we really need to crop it out
    * of the image; the positional information will probably suffice.
    * 
-   * @return a WhiteDot object identifying the white dot's positional information relative to the pupil
+   * @return a WhiteDot object identifying the white dot's positional information 
+   * relative to the pupil
    */
   public WhiteDot getWhiteDot() {
     if (whiteDot != null) {
       return whiteDot;
     }
+    /*random code so that debug output will not override each other*/
     int code = (new Random()).nextInt();
+    
+    /*Creating the image container to hold the imported image*/
     Mat src = new Mat();
+    /*Copies the data from the private mat variable into src*/
     mat.copyTo(src);
+    /*This will hold the gray-scaled image*/
     Mat gray = new Mat();
+
+    /*Converts the image from src into gray-scale and stores it into gray*/
     Imgproc.cvtColor(src, gray, Imgproc.COLOR_BGR2GRAY);
+    
+    /*This is the test image to test if the image will be converted to grayscale*/
     Highgui.imwrite("gray-test.jpg", gray);
-    Double thresh = Imgproc.threshold(gray, gray, 240, 255, Imgproc.THRESH_BINARY);
-    Highgui.imwrite("thresh-test.jpg", gray);
+    Highgui.imread("gray-test.jpg");
+    
+    /*Applies the threshold effect on the image for white values. Takes the image in
+     * gray and detects pixels of GRAY and turns it WHITE, and it stores it back to gray.*/
+    Double thresh = Imgproc.threshold(gray, gray, GRAY, WHITE, Imgproc.THRESH_BINARY);
+    
+    /*Test that checks if the image has the threshold effect applied*/
+    //Highgui.imwrite("thresh-test.jpg", gray);
+    
+    /*Creating a list to hold the values of the detected contours. Each contour 
+     * found will be stored as a vector of points*/
     List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
+    
+    /*This will find the contours in a cloned gray and store the points of those contours 
+     * in contours list.
+     * Imgproc.RETR_LIST = 1; Retrieves all of the contours without establishing any hierarchical
+     * relationships
+     * Imgproc.CHAIN_APPROX_SIMPLE = 2; Stores absolutely all the contour points.
+     * These are static final int constants defined in Imgproc object.
+     * */
     Imgproc.findContours(gray.clone(), contours, new Mat(), Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
-    Imgproc.drawContours(gray, contours, -1, new Scalar(255, 255, 255), -1);
+    
+    /*This draws the draws contour outlines in the image if thickness >= 0 or fills the area 
+     * bounded by the contours if thickness<0. thickness is last parameter. fillCONTOURS will allow
+     * all the contours to be drawn.*/
+    Imgproc.drawContours(gray, contours, fillCONTOURS, new Scalar(WHITE, WHITE, WHITE), contourTHICKNESS);
+
+    /*If the contours list has nothing in it, then it means that the patient does not have contours in
+     * their image. Stop function.*/
     if (contours.isEmpty()) {
       log.error("No contours found for this pupil.");
       return null;
     }
+
+
+    /*Creating a point representing a location in (x,y) coordinate space, specified in integer precision.
+     * This sets up a pointer to point to the very center of the image. As you can see, we have x point
+     * to half of mat(the image) and for the y axis to half of mat's height. TODO*/
     java.awt.Point pupilCenter = new java.awt.Point(mat.width() / 2, mat.height() / 2);
+
+
+    /*List holding the distants in the contours. This will hold pairs(left, right), where left is the contour 
+     * and right is the contour's distance from the center of the pupil*/
     List<Pair<MatOfPoint, Double>> contourDistances = new ArrayList<>(contours.size());
+
+    /*For-loop will go through the contours list and evaluate each of the contour points found in the list.
+     * It will store the distance (in contourDistances) it finds between the center of the pupil to the 
+     * contours it locates. */
     for (int i = 0; i < contours.size(); i++) {
+
+      /*Creates rectangle object. boundingRect calculates the up-right bounding rectangle of a point set using
+       * the value count in contours.*/
       Rect rect = Imgproc.boundingRect(contours.get(i));
-      Core.circle(src, new Point(rect.x + rect.width / 2, rect.y + rect.width / 2), rect.width / 2, new Scalar(255, 0, 0), 1);
+
+      /*To obtain the radius for the circle*/
       int radius = rect.width / 2;
+
+      /*Creates a circle using the information from the rectangle object.
+       * circle(Mat img, Point center, int radius, Scalar color, int thickness).
+       * Thickness is the outline of the circle.*/
+      Core.circle(src, new Point(rect.x + rect.width / 2, rect.y + rect.width / 2), radius,
+       new Scalar(WHITE, BLACK, BLACK), circleTHICKNESS);
+      
+      /*Points to the center of the circle*/
       java.awt.Point center = new java.awt.Point(rect.x + radius, rect.y + radius);
+
+      /*Gets the distance between the pupil to the contour and stores it as pairs in the 
+       * contourDistance list. First element is the value of the contour, then the second is
+       * the distance between the pupil center to the contour.*/
       contourDistances.add(new Pair<>(contours.get(i), pupilCenter.distanceSq(center)));
     }
+
+    /*sort the contours based on the distance from the center of the pupil (ascending)*/
     contourDistances.sort(contourCompare);
+
+    /*Empty pair object*/
     Pair<MatOfPoint, Double> whiteDotPair = null;
     
-    for (Pair<MatOfPoint, Double> pair : contourDistances) {
+    
+    /*For-each loop: For each pair found in the contourDistances list, find the closest contour that matches
+     * certain criteria (currently checks for size)*/
+    for (Pair<MatOfPoint, Double> pair: contourDistances) {
+
+      /* pair.getLeft() is the contour and pair.getRight() is the contour's distance from the 
+       * center of the pupil*/
+      /*This calculates the contour area and stores it into area*/
       double area = Imgproc.contourArea(pair.getLeft());
-      log.info("whiteDot distance: " + pair.getRight() + ", area: " + area);
+
+      /*This will print out that the white dot is currently at the contour's distance from the center of
+       * the pupil. It will also tell us the current area of the contour*/
+      log.info("whiteDot distance: {}, area: {}", pair.getRight(), area);
       
-      if (area < 10 || area > 200.0) { // basic bounds checking, may need some tuning
+      /*NEEDS TUNING: This is suppose to check the bounds*/
+      if (area < 10 || area > 200.0) {
+        /*If the area falls between these ranges, then reiterate up the loop and don't evaluate whats
+         * below this if statement.*/
         continue;
       }
+
+      /*If the area doesn't call between those ranges, then continue onto the loop and break.*/
+
+      /*Stores the pair with the information about the contour's area and the distance between the 
+       * contour and the center of the pupil into the whiteDotPair.*/
       whiteDotPair = pair;
+
+      /*Prints out information about the area of the found contour.*/
       log.info("selected pair with area: " + area);
+
+      /*Escape the for-loop*/
       break;
     }
+
+    /*If whiteDotPair is null, meaning that the area was never within the correct ranges, then we can't
+     *  detect the white dot in the eye.*/
     if (whiteDotPair == null) {
       log.error("[WhiteDot Detection] Unable to find suitable white dot");
       return null;
     }
-    MatOfPoint whiteDotContour = whiteDotPair.getLeft(); // assume white dot is the contour closest to the center of the image
 
-    // debug test
+    /* whiteDotPair.getLeft() is the contour(of type MatOfPoint) and whiteDotPair.getRight() is the contour's 
+     * distance from the center of the pupil*/
+    /*assume white dot is the contour closest to the center of the image*/
+    MatOfPoint whiteDotContour = whiteDotPair.getLeft(); 
+
+    /*DEBUGGING TEST*/
+    /*This creates a retangle by calculating the up-right bounding rectangle of a point set.
+     * The function calculates and returns the minimal up-right bounding rectangle for the 
+     * specified point set.
+     * Basically, creating a retangle out of the value of the contour*/
     Rect rect = Imgproc.boundingRect(whiteDotContour);
-    Highgui.imwrite("test" + code + ".jpg", src);
+
+    /*Tester*/
+    //Highgui.imwrite("test" + code + ".jpg", src);
+
+    /*Calculates area by pi * ((rectangle's width / 2)^2) */
     double wdarea = Math.PI * Math.pow(rect.width / 2, 2);
+
     //need: distance from white dot center to pupil center,
     //      angle between white dot center and pupil center
+
+    /*Radius to center*/
     int radius = rect.width / 2;
+
+    /*Make new pointer point to the center of the rectangle*/
     java.awt.Point whiteDotCenter = new java.awt.Point(rect.x + radius, rect.y + radius);
+
+    /*Calculates distance between the pupil center and the white dot*/
     double distance = pupilCenter.distance(whiteDotCenter);
+
+    /*Calculate the difference in the distance between the white dot and the pupil center along the x-axis*/
     double xDist = whiteDotCenter.x - pupilCenter.x;
+    
+    /*If the xdistance is greater than the distance between the pupil center and the white dot is greater,
+     * then it means that the distance calculation was incorrect*/
     if (xDist > distance) {
       log.error("[WhiteDot Detection] unfulfilled invariant: adjacent edge of triangle is bigger than hypotenuse");
       return null;
     }
-    log.info("[WhiteDot Detection] Computing angle for xDist: " + xDist + ", dist: " + distance);
+    /*Print out information about the x distance and the distance between pupil center and white dot.*/
+    log.info("[WhiteDot Detection] Computing angle for xDist: {}, dist: {}", xDist, distance);
+    /*Calculates the arccosine of the x-distance and the distance to find the y-distance or height.*/
     double angle = Math.acos(xDist / distance);
-    
-    log.info("[WhiteDot Detection] computed white dot with distance: " + distance + ", angle: " + Math.toDegrees(angle) + ", area: " + wdarea);
+
+    /*Print information about the white dot detection*/
+    log.info("[WhiteDot Detection] computed white dot with distance: {}, angle: {}, area: {}", distance, 
+      Math.toDegrees(angle), wdarea);
+    /*Sets current info about white dot to a WhiteDot object (defined in WhiteDot.java)*/
     this.whiteDot = new WhiteDot(distance, wdarea, angle);
     return whiteDot;
   }
@@ -124,8 +271,74 @@ public class Pupil {
    * @return
    */
   public double getCrescent() {
-    return 0;
-  }
+	  
+	  if(this.whiteDot == null) {
+		 
+		  log.error("There is no whiteDot");
+		  return -1;
+	  }
+	  
+	  /* Create a new Mat to store the picture*/
+	  Mat source = new Mat();
+	  /* copies the instance variable into source*/
+	  mat.copyTo(source);
+	  Mat gray = new Mat();
+	  
+	  /* convert the source picture into grayscale and store it into gray*/
+	  Imgproc.cvtColor(source, gray, Imgproc.COLOR_BGR2GRAY);
+	  
+	  /* those values above 240, will turned to white, the remaining values to black*/
+	  Imgproc.threshold(gray, gray, LIGHTGRAY, WHITE, Imgproc.THRESH_BINARY);
+	  
+	  /* an arraylist of points used to store the contours found in the image */
+	  List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
+	  
+	  Imgproc.findContours(gray.clone(), contours, new Mat(), Imgproc.RETR_LIST, Imgproc.CHAIN_APPROX_SIMPLE);
+	  Imgproc.drawContours(gray, contours, fillCONTOURS, new Scalar(WHITE, WHITE, WHITE), contourTHICKNESS); 
+	 
+	  if(contours.isEmpty()) {
+		  log.error("No crescent found");
+		  return 0.0;
+	  }
+	  
+	  //an arrayList of Pair objects. Recall: a Pair object is itself an arrayList that
+	  //can store two objects. In this case, we store both the contour at the specified index
+	  //in contours as well as its corresponding area. 
+	  List<Pair<MatOfPoint, Double>> contourAreas = new ArrayList<>();
+	  
+	  //the contour area cannot be lower than the area 
+	  //of the whiteDot, so use it as a lower bound.
+	  double lowerBound = whiteDot.getArea();
+	  double upperBound = 3*lowerBound; //an approximation
+	  double currentArea;
+	  
+	  for (int i = 0; i < contours.size(); i++) {
+		 
+		 currentArea = Imgproc.contourArea(contours.get(i));
+		 
+		 //if the area of the specified contour is smaller than 
+		 //this.whiteDot or greater than three times this.whiteDot
+		 //skip it. 
+		 if(lowerBound > currentArea || currentArea > upperBound) {
+		 	log.error("current contour is out of bounds");
+		 	continue;
+		 }
+		 
+		 
+		 //add both the contour as well as its area to the arrayList
+		 contourAreas.add(new Pair<>(contours.get(i), Imgproc.contourArea(contours.get(i)))); 
+	  
+	  }
+	  
+	  //sorts the array in ascending order, so that the largest area is the last element
+	  contourAreas.sort(contourCompare); 
+	  int indexOfLast = contourAreas.size() -1;
+	  
+	  //return the largest area, found in the last element
+	  double maxArea = contourAreas.get(indexOfLast).getRight();
+	  
+	  return maxArea;
+   } 
   
   /**
    * Return the area of the DETECTED pupil.
